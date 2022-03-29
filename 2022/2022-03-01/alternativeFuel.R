@@ -7,6 +7,8 @@ library(cowplot)
 library(ggtext)
 options(tigris_use_cache = TRUE)
 
+#TODO: add data source to plot
+
 # get station data
 stations <- tt_load(2022, week = 9)$stations
 
@@ -155,4 +157,4 @@ finalPlot <- ggdraw() +
              arrow = arrow(length = unit(0.03, "npc")), 
              curvature = 0.1) 
 
-ggsave(filename = "./2022/2022-03-01/EVStations.png", finalPlot, width = 11, height = 8.5 )
+ggsave(filename = "./2022/2022-03-01/EVStations.png", finalPlot, width = 11, height = 8.5, bg = "white")
