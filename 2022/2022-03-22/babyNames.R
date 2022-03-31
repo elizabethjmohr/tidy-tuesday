@@ -6,170 +6,131 @@ library(showtext)
 library(cowplot)
 library(colorspace)
 library(patchwork)
+library(shadowtext)
 
+# Read in data
 data <- tidytuesdayR::tt_load(2022, week = 12)
 
-# Add font
+# Add fonts
 font_add_google("Source Sans Pro", family = "sansPro")
+font_add_google("Quicksand", family = "quicksand")
 showtext_auto()
 showtext_opts(dpi = 300)
 
-# Ideas: 
-# 1.How do top-ranked baby names for each year fare over time? 
-# Which baby names are consistently popular vs. transiently popular? 
+# Define helper functions
+source(here::here("2022", "2022-03-22", "functions.R"))
 
-rankedNames <- data$babynames %>%
-  group_by(year, sex) %>%
-  mutate(rank = rank(-prop))
-
-topNames <- rankedNames %>%
-  filter(rank == 1) %>%
-  ungroup() %>%
-  distinct(name, sex) 
-
-numberOfOneRanks <- rankedNames %>% 
-  right_join(topNames, 
-             by = c("sex", "name")) %>%
-  group_by(name,sex) %>%
-  filter(rank == 1) %>%
-  summarize(NumOnes = n()) %>%
-  arrange(sex, desc(NumOnes))
-
-ggplot(rankedNames %>% 
-         right_join(topNames, 
-                  by = c("sex", "name")) %>%
-         mutate(name = factor(name, levels = numberOfOneRanks$name)), 
-       aes(x = year, y = rank, group = name, color = sex)) + 
-  geom_line()+
-  scale_y_reverse()+
-  theme_minimal_grid()+
-  facet_wrap(~name)+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-
-ggplot(rankedNames %>% 
-         right_join(topNames, 
-                    by = c("sex", "name")) %>%
-         mutate(name = factor(name, levels = numberOfOneRanks$name)), 
-       aes(x = name, y = rank,color = sex)) + 
-  geom_quasirandom(alpha = 0.6,  stroke = 0, size =2)+
-  scale_y_reverse(breaks = c(1, 100, 200, 300, 400, 500), limits = c(500,1))+
-  scale_x_discrete(position = "top") +
-  theme_minimal_grid()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        axis.title.x = element_blank(),
-        legend.position = "bottom")
-# rectangular heatmap showing which name was #1 for M and F
-
-# 2.Number of unique baby names vs. time
-data$babynames %>% 
+# Plot number of unique baby names vs. time
+uniqueBabyNamesVTime <- data$babynames %>% 
   group_by(year) %>%
   summarize(n = n()) %>%
   ggplot(aes(x = year, y = n))+
-  geom_line(size = 1.5)+
-  ylim(0,36000)+
-  ylab("unique baby names")+
+  #geom_line(size = 1.5, color = "#567572FF")+
+  geom_line(size = 1.5, color = "#030E4F")+
+  ggtitle("Number of unique baby names through the years")+
   theme_minimal_grid()+
-  theme(axis.title.x = element_blank())
+  scale_x_continuous(breaks = seq(1880, 2020, by = 10), expand = c(0,0))+
+  scale_y_continuous(breaks = c(0,10000,20000,30000), 
+                     labels = c("0", "10,000", "20,000", "30,000"),
+                     limits = c(0,36000),
+                     expand = c(0,0))+
+  theme(axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, family = "sansPro", size = 12),
+        axis.text.y = element_text(family = "sansPro", size = 12),
+        plot.margin = margin(0,0,0,0),
+        plot.title = element_text(family = "sansPro",face = "bold", size = 13),
+        plot.title.position = "plot")
 
-# 3.Find 5 most common names by generation - 
-# Waffle plots of proportion of people with a certain name 
-# belonging to a each generation
+# Specify generations
 generations <- tibble(
-  year = seq(1880,2015),
-  generation = c(rep("Traditionalists", 66),
-                 rep("Baby Boomers", 19),
-                 rep("Generation X", 12),
-                 rep("Millenials", 19),
-                 rep("Gen Z", 20)),
+  year = seq(1928,2012),
+  generation = c(rep("Silent", 18), #1928-1945
+                 rep("Baby Boomers", 19), #1946-1964
+                 rep("Generation X", 16),#1965-1980
+                 rep("Millenials", 16),#1981-1996
+                 rep("Generation Z", 16)),#1997-2012
   age = 2022 - year # age in 2022
 ) 
 
-topNames <- data$babynames %>%
-  group_by(name, sex) %>%
-  summarize(sum = sum(n, na.rm = TRUE), .groups = "drop") %>%
-  group_by(sex) %>%
-  mutate(rank = rank(-sum)) %>%
-  filter(rank <=5) %>%
-  arrange(sex,rank) %>%
-  ungroup()
-
-topNamesSummary <- data$babynames %>%
-  right_join(topNames %>% select(name,sex), by = c("name", "sex")) %>%
-  left_join(generations, by = c("year")) %>%
-  left_join(data$lifetables %>% 
-              filter(year == 2010), # Used 2010 lifetable, assuming 2022 is too different
-            by = c("age" = "x", "sex" = "sex")) %>%
-  drop_na(lx) %>%
-  mutate(n_surviving = round(n*lx/100000)) %>%
-  group_by(name, sex, generation) %>%
-  summarize(n_in_2022 = sum(n_surviving)) %>%
-  mutate(percent = 100*n_in_2022/sum(n_in_2022)) %>%
-  nest() %>%
-  mutate(data = map(data, sumTo100)) %>%
-  unnest(cols = data)
-
-topNamesPerGen <- data$babynames %>%
+# Plot percent of each generation that has a name in the top 50 
+topFiftyNamesByGen <- data$babynames %>%
   left_join(generations, by = c("year")) %>%
   drop_na(generation) %>%
-  group_by(generation, name, sex) %>%
-  summarize(sum = sum(n, na.rm = TRUE), .groups = "drop") %>%
-  group_by(generation, sex) %>%
+  group_by(generation, sex, name) %>%
+  summarize(sum = sum(n, na.rm = TRUE)) %>%
   mutate(rank = rank(-sum)) %>%
-  filter(rank <=5) %>%
-  arrange(generation, sex,rank) %>%
+  mutate(top = rank <= 50) %>%
+  ungroup() %>%
+  group_by(generation, top) %>%
+  summarise(n = sum(sum, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = top, values_from = n, names_prefix = "top_") %>%
+  mutate(percentTop = 100*top_TRUE/(top_TRUE+top_FALSE),
+         nTop = round(percentTop),
+         nNotTop = 100 - nTop) %>%
+  select(generation, nTop, nNotTop) %>%
+  pivot_longer(2:3, names_to = "top", values_to = "n")
+  
+nameInTopWafflePlot<- wrap_elements(
+  wrap_plots(map(unique(generations$generation), 
+                 makeWaffle, 
+                 nameSummary = topFiftyNamesByGen),
+             nrow = 1),
+  clip = FALSE)+
+  ggtitle("Proportion of babies given one of the 50 most popular names of their generation") +
+  theme(plot.title = element_text(family = "sansPro",size = 13, face = "bold", lineheight = 0.5),
+        plot.title.position = "plot")
+
+
+legend <- makeWaffleLegend("Generation Z", topFiftyNamesByGen)
+
+mainTitle <- uniqueNamePlotTitle <- 
+  grid::textGrob(label = "BABIES BORN IN THE UNITED STATES ARE \nINCREASINGLY LIKELY TO BE GIVEN UNIQUE NAMES",
+                 x = unit(0, "npc"),
+                 gp = grid::gpar(fontfamily = "quicksand", 
+                                 fontsize = 15, 
+                                 fontface = "bold",
+                                 lineheight = 0.8),
+                 hjust = 0)
+
+
+# Patch plots together
+combinedPlot <- (wrap_elements(mainTitle)/
+                   wrap_elements(uniqueBabyNamesVTime)/ 
+                   plot_spacer()/
+                   nameInTopWafflePlot/
+                   legend) + 
+  plot_layout(heights = c(3,10,0.5,8,1))
+
+ggsave(filename = "./2022/2022-03-22/babyNames.pdf", 
+       plot = combinedPlot,
+       device= "pdf",
+       width = 6.7, 
+       height= 5.5,
+       units = "in")
+
+# Plot top-ranked baby names vs. time
+topNamesByYear <- data$babynames %>%
+  filter(year >=1928) %>%
+  group_by(sex, year) %>%
+  mutate(rank = rank(-n)) %>%
+  filter(rank == 1) %>%
+  arrange(year, sex, rank) %>%
   ungroup()
 
-topNamesPerGenSummary <- data$babynames %>%
-  right_join(topNamesPerGen %>% select(name,sex), by = c("name", "sex")) %>%
-  left_join(generations, by = c("year")) %>%
-  left_join(data$lifetables %>% 
-              filter(year == 2010), # Used 2010 lifetable, assuming 2022 is too different
-            by = c("age" = "x", "sex" = "sex")) %>%
-  drop_na(lx) %>%
-  mutate(n_surviving = round(n*lx/100000)) %>%
-  group_by(name, sex, generation) %>%
-  summarize(n_in_2022 = sum(n_surviving)) %>%
-  mutate(percent = 100*n_in_2022/sum(n_in_2022)) %>%
-  nest() %>%
-  mutate(data = map(data, sumTo100)) %>%
-  unnest(cols = data)
+rankedNames <- topNamesByYear %>%
+  group_by(name, sex) %>%
+  summarize(firstYear = min(year), 
+            nTop = n(), 
+            .groups = "drop") %>%
+  arrange(sex, desc(firstYear))
 
-topMaleNames <- topNames %>%
-  filter(sex == "M") %>%
-  mutate(plot = map(name, makeWaffle, nameSummary = topNamesSummary)) 
+topNamesByYear <- topNamesByYear %>%
+  mutate(name = factor(name, levels = rankedNames$name))
 
-topMaleNamesPerGen <- topNamesPerGen %>%
-  filter(sex == "M") %>%
-  mutate(plot = map(name, makeWaffle, nameSummary = topNamesPerGenSummary)) %>%
-  select(generation, plot) %>%
-  group_by(generation) %>%
-  nest() %>%
-  mutate(row = map(data, ~wrap_plots(.x$plot, nrow = 1))) %>%
-  mutate(generation = factor(generation,levels = c("Traditionalists", "Baby Boomers", "Generation X", "Millenials", "Gen Z"))) %>%
-  arrange(generation)
-
-topFemaleNames <- topNames %>%
-  filter(sex == "F") %>%
-  mutate(plot = map(name, makeWaffle, nameSummary = topNamesSummary)) 
-
-topFemaleNamesPerGen <- topNamesPerGen %>%
-  filter(sex == "F") %>%
-  mutate(plot = map(name, makeWaffle, nameSummary = topNamesPerGenSummary)) %>%
-  select(generation, plot) %>%
-  group_by(generation) %>%
-  nest() %>%
-  mutate(row = map(data, ~wrap_plots(.x$plot, nrow = 1))) %>%
-  mutate(generation = factor(generation,levels = c("Traditionalists", "Baby Boomers", "Generation X", "Millenials", "Gen Z"))) %>%
-  arrange(generation)
-
-legend <-  makeWaffleLegend("Elizabeth", topNamesSummary)
-
-wrap_plots(topMaleNamesPerGen$row, nrow = 5)/wrap_elements(legend) +
-  plot_layout(heights = c(11,1))
-wrap_plots(topFemaleNamesPerGen$row, nrow = 5) 
-wrap_plots(topMaleNames$plot, nrow = 1)/
-wrap_plots(topFemaleNames$plot, nrow = 1) +
-  legend + 
-  plot_layout(heights = c(3,3,1))
-
+ggplot(topNamesByYear %>% filter(sex == "F"), aes(x = year, y = name)) + 
+  geom_tile()+
+  scale_x_continuous(breaks = seq(1925, 2015, by = 5))+
+  theme_minimal_vgrid()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
