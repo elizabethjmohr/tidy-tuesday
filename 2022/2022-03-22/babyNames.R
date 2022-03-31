@@ -25,7 +25,6 @@ uniqueBabyNamesVTime <- data$babynames %>%
   group_by(year) %>%
   summarize(n = n()) %>%
   ggplot(aes(x = year, y = n))+
-  #geom_line(size = 1.5, color = "#567572FF")+
   geom_line(size = 1.5, color = "#030E4F")+
   ggtitle("Number of unique baby names through the years")+
   theme_minimal_grid()+
@@ -53,7 +52,7 @@ generations <- tibble(
   age = 2022 - year # age in 2022
 ) 
 
-# Plot percent of each generation that has a name in the top 50 
+# Calculate percent of each generation that has a name in the top 50 
 topFiftyNamesByGen <- data$babynames %>%
   left_join(generations, by = c("year")) %>%
   drop_na(generation) %>%
@@ -70,7 +69,8 @@ topFiftyNamesByGen <- data$babynames %>%
          nNotTop = 100 - nTop) %>%
   select(generation, nTop, nNotTop) %>%
   pivot_longer(2:3, names_to = "top", values_to = "n")
-  
+
+# Make waffle plot for each generation
 nameInTopWafflePlot<- wrap_elements(
   wrap_plots(map(unique(generations$generation), 
                  makeWaffle, 
@@ -81,9 +81,10 @@ nameInTopWafflePlot<- wrap_elements(
   theme(plot.title = element_text(family = "sansPro",size = 13, face = "bold", lineheight = 0.5),
         plot.title.position = "plot")
 
-
+# Extract waffle plot legend
 legend <- makeWaffleLegend("Generation Z", topFiftyNamesByGen)
 
+# Create main plot title
 mainTitle <- uniqueNamePlotTitle <- 
   grid::textGrob(label = "BABIES BORN IN THE UNITED STATES ARE \nINCREASINGLY LIKELY TO BE GIVEN UNIQUE NAMES",
                  x = unit(0, "npc"),
@@ -108,29 +109,4 @@ ggsave(filename = "./2022/2022-03-22/babyNames.pdf",
        width = 6.7, 
        height= 5.5,
        units = "in")
-
-# Plot top-ranked baby names vs. time
-topNamesByYear <- data$babynames %>%
-  filter(year >=1928) %>%
-  group_by(sex, year) %>%
-  mutate(rank = rank(-n)) %>%
-  filter(rank == 1) %>%
-  arrange(year, sex, rank) %>%
-  ungroup()
-
-rankedNames <- topNamesByYear %>%
-  group_by(name, sex) %>%
-  summarize(firstYear = min(year), 
-            nTop = n(), 
-            .groups = "drop") %>%
-  arrange(sex, desc(firstYear))
-
-topNamesByYear <- topNamesByYear %>%
-  mutate(name = factor(name, levels = rankedNames$name))
-
-ggplot(topNamesByYear %>% filter(sex == "F"), aes(x = year, y = name)) + 
-  geom_tile()+
-  scale_x_continuous(breaks = seq(1925, 2015, by = 5))+
-  theme_minimal_vgrid()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
