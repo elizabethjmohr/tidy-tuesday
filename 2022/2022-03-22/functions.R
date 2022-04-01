@@ -7,7 +7,7 @@ myWaffleTheme <-  theme(panel.background = element_blank(),
                         plot.title = element_text(hjust = 0.5,vjust = 0, family = "sansPro", size = 12))
 
 generationColorScheme <-  scale_fill_manual(values = c('#BBCC33', '#77AADD', '#EE8866', '#EEDD88', '#FFAABB'), drop = FALSE)
-binaryColorScheme <- scale_fill_manual(values = c("#F49F1C", "#D3D3D3"), drop = FALSE)
+binaryColorScheme <- scale_fill_manual(values = c("#964F4CFF", "#D3D3D3"), drop = FALSE)
 
 # Force rounded percents to sum to 100
 sumTo100 <- function(tbl){

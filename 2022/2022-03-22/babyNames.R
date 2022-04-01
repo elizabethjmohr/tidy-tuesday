@@ -25,7 +25,7 @@ uniqueBabyNamesVTime <- data$babynames %>%
   group_by(year) %>%
   summarize(n = n()) %>%
   ggplot(aes(x = year, y = n))+
-  geom_line(size = 1.5, color = "#030E4F")+
+  geom_line(size = 1.5, color = "#567572FF")+
   ggtitle("Number of unique baby names through the years")+
   theme_minimal_grid()+
   scale_x_continuous(breaks = seq(1880, 2020, by = 10), expand = c(0,0))+
